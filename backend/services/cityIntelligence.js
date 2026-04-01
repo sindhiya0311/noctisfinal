@@ -2,12 +2,19 @@ const incidents = [];
 const learnedZones = [];
 
 function cityIntelligence(lat, lng, risk) {
+  const now = Date.now();
+
   if (risk > 70) {
-    incidents.push({
-      lat,
-      lng,
-      time: Date.now(),
-    });
+    // Prevent flooding the array with identical logic ticks while stationary
+    const recentDuplicate = incidents.find(
+      (inc) =>
+        now - inc.time < 60000 && 
+        Math.sqrt(Math.pow(inc.lat - lat, 2) + Math.pow(inc.lng - lng, 2)) < 0.005
+    );
+
+    if (!recentDuplicate) {
+      incidents.push({ lat, lng, time: now });
+    }
   }
 
   // cluster incidents

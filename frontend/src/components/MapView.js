@@ -39,9 +39,15 @@ export default function MapView({
   cabNumber,
   driverName,
   driverPhone,
+  tripMode = false,
 }) {
   const { risk, context, updateRisk, updateContext, emergency, demoMode } =
     useContext(RiskContext);
+
+  const tripModeRef = useRef(tripMode);
+  useEffect(() => {
+    tripModeRef.current = tripMode;
+  }, [tripMode]);
 
   const user = JSON.parse(sessionStorage.getItem("user")) || {};
   const workerName = user.name || user.username || "Worker";
@@ -112,6 +118,24 @@ export default function MapView({
   useEffect(() => {
     window.demoSetPosition = setPosition;
   }, []);
+
+  // Listen to the ML server's processed risk so our local dashboard syncs exactly with what family members see
+  useEffect(() => {
+    const handleMyUpdate = (serverWorker) => {
+      if (!serverWorker) return;
+      
+      const myId = user?._id || user?.id;
+      if (serverWorker.userId === myId) {
+        if (!emergencyRef.current && !demoMode) {
+           updateRiskRef.current(serverWorker.risk || 5);
+           updateContextRef.current(serverWorker.context || "Safe");
+        }
+      }
+    };
+    
+    socket.on("worker:update", handleMyUpdate);
+    return () => socket.off("worker:update", handleMyUpdate);
+  }, [user, demoMode]);
 
   const lastPositionRef = useRef(null);
   const lastMoveTimeRef = useRef(Date.now());
@@ -207,10 +231,22 @@ export default function MapView({
         const key = `savedLocations_${user?._id || user?.id}`;
         const saved = JSON.parse(localStorage.getItem(key)) || [];
 
+        let taggedLocationContext = null;
+        for (const loc of saved) {
+          const dist = getDistance(current.lat, current.lng, loc.lat, loc.lng);
+          if (dist < 50) {
+            taggedLocationContext = `In ${loc.name}`;
+            break;
+          } else if (dist < 300) {
+            taggedLocationContext = `Near ${loc.name}`;
+            // keep looking, another might be < 50m
+          }
+        }
+
         const home = saved.find((l) => l.name === "Home");
         const office = saved.find((l) => l.name === "Office");
 
-        if (home && office) {
+        if (home && office && !tripModeRef.current) {
           const deviation = checkRouteDeviation(
             current,
             { lat: home.lat, lng: home.lng },
@@ -230,7 +266,7 @@ export default function MapView({
         }
 
         socket.emit("worker:update", {
-          userId: user._id,
+          userId: userId,
           name: workerName,
           lat,
           lng,
@@ -239,6 +275,8 @@ export default function MapView({
           night,
           unsafe,
           deviation: deviationFlag,
+          taggedLocation: taggedLocationContext, // New spatial context
+          tripMode: tripModeRef.current,
           risk: emergencyRef.current ? 100 : newRisk,
           context: emergencyRef.current ? contextRef.current : newContext,
           transportType: transportTypeRef.current,
@@ -309,7 +347,7 @@ export default function MapView({
       localStorage.setItem(overrideKey, JSON.stringify(position));
 
       socket.emit("worker:update", {
-        userId: user._id,
+        userId: userId,
         name: workerName,
         lat: position[0],
         lng: position[1],

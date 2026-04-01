@@ -5,13 +5,17 @@ import {
   Navigate,
 } from "react-router-dom";
 import AuthPage from "./pages/AuthPage";
-import WorkerDashboard from "./pages/WorkerDashboard";
 import FamilyDashboard from "./pages/FamilyDashboard";
-import EnterpriseDashboard from "./pages/EnterpriseDashboard";
-import ProtectedRoute from "./components/ProtectedRoute";
+
+function ProtectedRoute({ children }) {
+  const userData = sessionStorage.getItem("user");
+  if (!userData) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
 
 function App() {
-  // Use sessionStorage to match your dashboards and ProtectedRoute
   const userData = sessionStorage.getItem("user");
   const user = userData ? JSON.parse(userData) : null;
 
@@ -19,53 +23,22 @@ function App() {
     <Router>
       <div className="bg-[#020617] min-h-screen text-white">
         <Routes>
-          {/* Root Path: Redirects based on role if logged in, else shows Auth */}
           <Route
             path="/"
             element={
-              user ? (
-                user.role === "worker" ? (
-                  <Navigate to="/worker" replace />
-                ) : user.role === "family" ? (
-                  <Navigate to="/family" replace />
-                ) : (
-                  <Navigate to="/enterprise" replace />
-                )
-              ) : (
-                <AuthPage />
-              )
-            }
-          />
-
-          {/* Protected Routes */}
-          <Route
-            path="/worker"
-            element={
-              <ProtectedRoute role="worker">
-                <WorkerDashboard />
-              </ProtectedRoute>
+              user ? <Navigate to="/dashboard" replace /> : <AuthPage />
             }
           />
 
           <Route
-            path="/family"
+            path="/dashboard"
             element={
-              <ProtectedRoute role="family">
+              <ProtectedRoute>
                 <FamilyDashboard />
               </ProtectedRoute>
             }
           />
 
-          <Route
-            path="/enterprise"
-            element={
-              <ProtectedRoute role="enterprise">
-                <EnterpriseDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Catch-all: Redirect unknown routes to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

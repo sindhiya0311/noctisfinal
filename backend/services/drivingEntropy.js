@@ -21,12 +21,13 @@ function calculateEntropy(userId, speed) {
   const variance =
     speeds.reduce((sum, s) => sum + Math.pow(s - avg, 2), 0) / speeds.length;
 
-  // entropy score
-  if (variance > 400) return 20;
-  if (variance > 200) return 12;
-  if (variance > 100) return 6;
+  // Smooth continuous entropy mapping instead of hard mathematical steps to prevent sudden jitter spikes
+  let risk = (variance / 400) * 20;
+  
+  if (risk > 20) risk = 20;
+  if (risk < 0) risk = 0;
 
-  return 0;
+  return Math.round(risk);
 }
 
 module.exports = calculateEntropy;

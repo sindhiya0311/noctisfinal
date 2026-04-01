@@ -35,7 +35,17 @@ router.get("/:userId", async (req, res) => {
     status: "pending",
   });
 
-  res.json(requests);
+  const enrichedRequests = await Promise.all(
+    requests.map(async (r) => {
+      const fromUser = await User.findById(r.fromUser);
+      return {
+        ...r.toObject(),
+        fromUserEmail: fromUser ? fromUser.email : "Unknown User",
+      };
+    })
+  );
+
+  res.json(enrichedRequests);
 });
 
 // GET LINKED USERS
@@ -45,7 +55,20 @@ router.get("/linked/:userId", async (req, res) => {
     status: "accepted",
   });
 
-  res.json(linked);
+  const enrichedLinked = await Promise.all(
+    linked.map(async (r) => {
+      const isFromMe = r.fromUser === req.params.userId;
+      const counterpartId = isFromMe ? r.toUser : r.fromUser;
+      const counterpartUser = await User.findById(counterpartId);
+      return {
+        ...r.toObject(),
+        counterpartId,
+        counterpartName: counterpartUser ? counterpartUser.name || counterpartUser.email : "Unknown Member",
+      };
+    })
+  );
+
+  res.json(enrichedLinked);
 });
 
 // ACCEPT

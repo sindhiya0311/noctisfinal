@@ -40,6 +40,7 @@ export default function FamilyDashboard() {
   const [requests, setRequests] = useState([]);
   const [familyEmail, setFamilyEmail] = useState("");
   const [familyMsg, setFamilyMsg] = useState("");
+  const [tripMode, setTripMode] = useState(false);
 
   const recognitionRef = useRef(null);
 
@@ -160,9 +161,9 @@ export default function FamilyDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white flex">
-      {/* SIDEBAR */}
-      <div className="w-72 bg-gradient-to-b from-[#020617]/90 to-[#030a1a]/90 backdrop-blur-3xl border-r border-white/10 p-6 shadow-2xl z-20 flex flex-col justify-between">
+    <div className="min-h-screen bg-[#020617] text-white flex flex-col md:flex-row pb-16 md:pb-0">
+      {/* DESKTOP SIDEBAR */}
+      <div className="hidden md:flex w-72 bg-gradient-to-b from-[#020617]/90 to-[#030a1a]/90 backdrop-blur-3xl border-r border-white/10 p-6 shadow-2xl z-20 flex-col justify-between h-screen sticky top-0">
         <div>
           <h1 className="text-2xl font-bold tracking-widest mb-10 bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent flex items-center gap-3">
             <Shield className="text-blue-400" size={28} />
@@ -194,16 +195,77 @@ export default function FamilyDashboard() {
           </div>
         </div>
 
+        <div className="mt-auto">
+          {/* Enhanced Glassmorphic Trip Mode Toggle */}
+          <div className="mb-6">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest px-1 mb-3 flex items-center justify-between">
+              <span>Tracking Mode</span>
+              {tripMode ? <span className="text-blue-400 flex"><MapPin size={14} className="mr-1"/>Active</span> : <span className="text-green-400 flex"><Activity size={14} className="mr-1"/>Active</span>}
+            </div>
+            <div 
+              className="bg-black/60 border border-white/10 rounded-2xl p-1 relative flex items-center cursor-pointer overflow-hidden shadow-inner h-12" 
+              onClick={() => setTripMode(!tripMode)}
+            >
+              <motion.div 
+                className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-gradient-to-r from-blue-600 to-indigo-600 border border-blue-400/50 rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.5)] z-0"
+                animate={{ left: tripMode ? "calc(50% + 2px)" : "4px" }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+              <div className={`flex-1 text-center text-sm font-bold z-10 transition-all duration-300 ${!tripMode ? "text-white" : "text-gray-500"}`}>Routine</div>
+              <div className={`flex-1 text-center text-sm font-bold z-10 transition-all duration-300 ${tripMode ? "text-white" : "text-gray-500"}`}>Trip</div>
+            </div>
+          </div>
+
+          <button
+            onClick={triggerManualSOS}
+            className="px-4 py-3 rounded-xl text-red-400 font-semibold border border-red-500/20 hover:bg-red-500/20 transition-all flex justify-center items-center gap-2 w-full shadow-lg"
+          >
+            <Siren size={18} /> Emergency SOS
+          </button>
+        </div>
+      </div>
+
+      {/* MOBILE HEADER */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-[#020617]/90 backdrop-blur-xl border-b border-white/10 sticky top-0 z-40">
+        <h1 className="text-xl font-bold tracking-widest bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent flex items-center gap-2">
+          <Shield className="text-blue-400" size={24} />
+          NOCTIS
+        </h1>
         <button
-          onClick={triggerManualSOS}
-          className="mt-8 px-4 py-3 rounded-xl text-red-400 font-semibold border border-red-500/20 hover:bg-red-500/20 transition-all flex justify-center items-center gap-2 w-full shadow-lg"
+          onClick={() => {
+            triggerManualSOS();
+            socket.emit("worker:sos", { userId: user?._id || user?.id });
+          }}
+          className="px-3 py-1.5 rounded-lg text-red-100 bg-red-500/20 font-semibold border border-red-500/30 active:bg-red-500/40 flex justify-center items-center gap-2 shadow-lg"
         >
-          <Siren size={18} /> Emergency SOS
+          <Siren size={16} className={risk >= 80 ? 'animate-pulse' : ''} /> SOS
         </button>
       </div>
 
+      {/* MOBILE BOTTOM NAV */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#020617]/95 backdrop-blur-xl border-t border-white/10 z-50 flex items-center justify-around px-2 pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+        {[
+          ["dashboard", <Radar size={22}/>],
+          ["tracked-members", <Users size={22}/>],
+          ["locations", <MapPin size={22}/>],
+          ["heatmap", <Activity size={22}/>],
+          ["codeword", <Radio size={22}/>],
+          ["family", <Shield size={22}/>],
+        ].map(([key, icon]) => (
+          <div
+            key={key}
+            onClick={() => setPage(key)}
+            className={`p-3 rounded-xl transition-all ${
+              page === key ? "bg-blue-500/20 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]" : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            {icon}
+          </div>
+        ))}
+      </div>
+
       {/* CONTENT */}
-      <div className="flex-1 p-8 relative overflow-hidden flex flex-col">
+      <div className="flex-1 p-4 md:p-8 relative overflow-x-hidden flex flex-col min-h-[calc(100vh-[140px])] md:min-h-screen">
         {/* Dynamic Background Glow */}
         <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[100px] opacity-20 pointer-events-none transition-colors duration-1000 ${risk >= 80 ? 'bg-red-500' : risk >= 40 ? 'bg-yellow-500' : 'bg-blue-500'}`} />
 
@@ -217,16 +279,16 @@ export default function FamilyDashboard() {
             transition={{ duration: 0.3 }}
             className="flex-1 flex flex-col"
           >
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 md:mb-8">
               <div>
-                <h2 className="text-3xl font-bold tracking-tight">Personal Workspace</h2>
-                <div className="text-gray-400 mt-1">Live AI safety tracking and telemetry for your own safety</div>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Personal Workspace</h2>
+                <div className="text-gray-400 mt-1 text-sm md:text-base">Live AI tracking & telemetry</div>
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-3">
                 <button
                   onClick={logout}
-                  className="bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-2 rounded-xl hover:bg-red-500/20 font-medium transition"
+                  className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 md:px-5 py-2 rounded-xl hover:bg-red-500/20 font-medium transition text-sm md:text-base"
                 >
                   Logout
                 </button>
@@ -234,7 +296,7 @@ export default function FamilyDashboard() {
                 <motion.div
                   animate={{ opacity: [0.6, 1, 0.6] }}
                   transition={{ repeat: Infinity, duration: 2 }}
-                  className={`bg-opacity-20 px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border shadow-lg backdrop-blur-md ${risk >= 80 ? 'bg-red-500/20 text-red-400 border-red-500/30 shadow-red-500/20' : 'bg-green-500/20 text-green-400 border-green-500/30 shadow-green-500/20'}`}
+                  className={`bg-opacity-20 px-4 md:px-5 py-2 rounded-xl text-xs md:text-sm font-medium flex items-center gap-2 border shadow-lg backdrop-blur-md ${risk >= 80 ? 'bg-red-500/20 text-red-400 border-red-500/30 shadow-red-500/20' : 'bg-green-500/20 text-green-400 border-green-500/30 shadow-green-500/20'}`}
                 >
                   <Radar size={16} className={risk >= 80 ? 'animate-spin' : ''} />
                   {risk >= 80 ? "EMERGENCY OVERRIDE" : "Live Shield Active"}
@@ -242,14 +304,14 @@ export default function FamilyDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-8 flex-1">
-              <div className="col-span-8 bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-3xl p-3 h-[600px] shadow-2xl backdrop-blur-2xl relative overflow-hidden group">
-                <MapView />
+            <div className="flex flex-col xl:grid xl:grid-cols-12 gap-8 flex-1">
+              <div className="xl:col-span-8 bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-3xl p-2 md:p-3 h-[350px] md:h-[480px] shadow-2xl backdrop-blur-2xl relative overflow-hidden group">
+                <MapView tripMode={tripMode} />
                 {/* Visual Glass Overlay */}
                 <div className="absolute inset-0 pointer-events-none rounded-3xl border border-white/10 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)]" />
               </div>
 
-              <div className="col-span-4 space-y-6 flex flex-col justify-start">
+              <div className="xl:col-span-4 space-y-4 md:space-y-6 flex flex-col justify-start">
                 <motion.div 
                   animate={risk >= 80 ? { boxShadow: ["0px 0px 0px rgba(239,68,68,0)", "0px 0px 40px rgba(239,68,68,0.5)", "0px 0px 0px rgba(239,68,68,0)"] } : {}}
                   transition={{ duration: 1.5, repeat: Infinity }}
@@ -262,7 +324,7 @@ export default function FamilyDashboard() {
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ duration: 0.3 }}
-                      className={`text-5xl font-bold tracking-tight ${riskColor}`}
+                      className={`text-4xl md:text-5xl font-bold tracking-tight ${riskColor}`}
                     >
                       {Math.round(risk)}%
                     </motion.div>
@@ -321,18 +383,18 @@ export default function FamilyDashboard() {
             animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
             exit={{ opacity: 0, filter: "blur(10px)", scale: 0.95 }}
             transition={{ duration: 0.3 }}
-            className="bg-gradient-to-br from-white/5 to-white/0 border border-white/10 p-8 rounded-3xl w-[700px] shadow-2xl backdrop-blur-xl mx-auto mt-10 relative overflow-hidden"
+            className="bg-gradient-to-br from-white/5 to-white/0 border border-white/10 p-4 md:p-8 rounded-3xl w-full max-w-[700px] shadow-2xl backdrop-blur-xl mx-auto mt-6 md:mt-10 relative overflow-hidden"
           >
-            <h2 className="text-2xl font-bold tracking-wide mb-6">Manage Connections</h2>
+            <h2 className="text-xl md:text-2xl font-bold tracking-wide mb-6">Manage Connections</h2>
 
-            <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 p-5 rounded-2xl border border-blue-500/20 mb-8">
-              <h3 className="font-semibold text-blue-300 mb-2">Request to Track Someone</h3>
-              <div className="flex gap-3">
+            <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 p-4 md:p-5 rounded-2xl border border-blue-500/20 mb-6 md:mb-8">
+              <h3 className="font-semibold text-blue-300 mb-2 md:mb-3">Request to Track Someone</h3>
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   value={familyEmail}
                   onChange={(e) => setFamilyEmail(e.target.value)}
                   className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition-colors shadow-inner"
-                  placeholder="Enter their email address..."
+                  placeholder="Enter their email..."
                 />
                 <button
                   onClick={sendFamilyRequest}
@@ -358,7 +420,9 @@ export default function FamilyDashboard() {
                     key={r._id}
                     className="p-4 bg-black/40 border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/5 transition-all"
                   >
-                    <span className="font-medium text-gray-200">A user wants to monitor your safety</span>
+                    <span className="font-medium text-gray-200">
+                      <span className="text-blue-400 font-bold">{r.fromUserEmail || "A user"}</span> wants to monitor your safety
+                    </span>
                     <div className="flex gap-3">
                       <button
                         onClick={() => acceptRequest(r._id)}

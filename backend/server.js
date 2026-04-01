@@ -55,6 +55,14 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
+  // Send current state immediately
+  socket.emit("workers:update", workers);
+
+  // Allow clients to request current state to avoid race conditions
+  socket.on("get:workers", () => {
+    socket.emit("workers:update", workers);
+  });
+
   socket.on("worker:update", (data) => {
     // ---------------- FAST UPDATE (NO LAG) ----------------
     workers[data.userId] = {
@@ -70,7 +78,7 @@ io.on("connection", (socket) => {
 
     setImmediate(async () => {
       const entropyRisk = calculateEntropy(data.userId, data.speed || 0);
-      const routeRisk = routeLearning(data.userId, data.lat, data.lng);
+      const routeRisk = data.tripMode ? 0 : routeLearning(data.userId, data.lat, data.lng);
 
       const prevSpeed = workers[data.userId]?.speed || 0;
       const acceleration = (data.speed || 0) - prevSpeed;
@@ -166,6 +174,7 @@ io.on("connection", (socket) => {
         timeRisk,
         predictiveBoost,
         trip,
+        taggedLocation: data.taggedLocation,
       });
 
       workers[data.userId] = {
@@ -192,6 +201,7 @@ io.on("connection", (socket) => {
       workers[data.userId].risk = 100;
       workers[data.userId].context = "Emergency triggered";
 
+      io.emit("worker:update", workers[data.userId]); // Forces local MapView UI to sync risk score!
       io.emit("worker:alert", workers[data.userId]);
       io.emit("workers:update", workers);
     }

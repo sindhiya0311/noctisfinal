@@ -21,15 +21,22 @@ function behaviorLearning(userId, speed, isStopped) {
 
   let risk = 0;
 
-  // unusual slow movement
+  // unusual slow movement with hysteresis
   if (speed < avgSpeed * 0.3 && avgSpeed > 10) {
-    risk += 10;
+    user.slowTicks = (user.slowTicks || 0) + 1;
+  } else {
+    user.slowTicks = 0;
   }
 
-  // unusual fast movement
-  if (speed > avgSpeed * 2) {
-    risk += 10;
+  // unusual fast movement with hysteresis
+  if (speed > avgSpeed * 1.5) {
+    user.fastTicks = (user.fastTicks || 0) + 1;
+  } else {
+    user.fastTicks = 0;
   }
+
+  if (user.slowTicks > 3) risk += 10;
+  if (user.fastTicks > 3) risk += 10;
 
   // abnormal stopping
   if (isStopped) {

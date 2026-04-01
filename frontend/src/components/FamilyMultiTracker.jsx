@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Shield, Activity } from "lucide-react";
+import axios from "axios";
 
 function Recenter({ position }) {
   const map = useMap();
@@ -18,30 +19,94 @@ export default function FamilyMultiTracker() {
   const [focusedMemberId, setFocusedMemberId] = useState(null);
   const [alert, setAlert] = useState(false);
   const audioRef = useRef(null);
+  const [allowedIds, setAllowedIds] = useState([]);
 
   useEffect(() => {
-    socket.on("workers:update", (workers) => {
-      setTrackedMembers(workers);
-      const hasEmergency = Object.values(workers).some((w) => w.risk >= 80);
-      if (hasEmergency) {
+    const fetchLinked = async () => {
+      try {
+        const userData = sessionStorage.getItem("user");
+        if (!userData) return;
+        const user = JSON.parse(userData);
+        const userId = user._id || user.id;
+        const res = await axios.get(`http://localhost:5000/api/requests/linked/${userId}`);
+        
+        const ids = [];
+        const initialMembers = {};
+
+        res.data.forEach((r) => {
+          ids.push(r.counterpartId);
+          initialMembers[r.counterpartId] = {
+            userId: r.counterpartId,
+            name: r.counterpartName,
+            risk: 0,
+            context: "Offline / Disconnected",
+            lat: 28.6139,
+            lng: 77.2090, // Map default fallback
+          };
+        });
+
+        setAllowedIds(ids);
+        setTrackedMembers((prev) => ({ ...initialMembers, ...prev }));
+      } catch (err) {
+        console.error("Error fetching family list:", err);
+      }
+    };
+    fetchLinked();
+  }, []);
+
+  useEffect(() => {
+    const handleUpdate = (workers) => {
+      setTrackedMembers((prev) => {
+        const merged = { ...prev };
+        for (const [id, worker] of Object.entries(workers)) {
+          // For socket updates: only update if part of our allowed lists
+          if (allowedIds.includes(id)) {
+            const existingName = prev[id]?.name;
+            merged[id] = { ...worker };
+            // Prevent the internal MapView fallback from hiding the real name
+            if (worker.name === "Worker" || !worker.name) {
+               merged[id].name = existingName || "Unknown Member";
+            }
+          }
+        }
+        
+        const hasEmergency = Object.values(merged).some((w) => w.risk >= 80);
+        if (hasEmergency) {
+          setAlert(true);
+          audioRef.current?.play().catch(() => {});
+        } else {
+          setAlert(false);
+        }
+
+        return merged;
+      });
+    };
+
+    socket.on("workers:update", handleUpdate);
+
+    // Explicitly ask server for current worker states (in case we missed them while loading API)
+    if (allowedIds.length > 0) {
+      socket.emit("get:workers");
+    }
+
+    socket.on("worker:alert", (w) => {
+      if (allowedIds.includes(w.userId)) {
+        setTrackedMembers((prev) => {
+          const existingName = prev[w.userId]?.name;
+          const merged = { ...prev, [w.userId]: { ...w } };
+          merged[w.userId].name = existingName || w.name;
+          return merged;
+        });
         setAlert(true);
         audioRef.current?.play().catch(() => {});
-      } else {
-        setAlert(false);
       }
     });
 
-    socket.on("worker:alert", (w) => {
-      setTrackedMembers((prev) => ({ ...prev, [w.userId]: w }));
-      setAlert(true);
-      audioRef.current?.play().catch(() => {});
-    });
-
     return () => {
-      socket.off("workers:update");
+      socket.off("workers:update", handleUpdate);
       socket.off("worker:alert");
     };
-  }, []);
+  }, [allowedIds]);
 
   const getIcon = (risk) => {
     let marker =
@@ -79,9 +144,9 @@ export default function FamilyMultiTracker() {
   }
 
   return (
-    <div className="h-full w-full relative bg-[#020617] flex overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
+    <div className="h-full w-full relative bg-[#020617] flex flex-col-reverse md:flex-row overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
       {/* INTERNAL SIDEBAR */}
-      <div className="w-80 bg-gradient-to-b from-[#020617]/95 to-[#030a1a]/95 backdrop-blur-3xl border-r border-white/10 flex flex-col z-[10] shadow-[20px_0_40px_rgba(0,0,0,0.5)] h-full">
+      <div className="w-full h-[40%] md:h-full md:w-80 bg-gradient-to-b from-[#020617]/95 to-[#030a1a]/95 backdrop-blur-3xl border-t md:border-t-0 md:border-r border-white/10 flex flex-col z-[10] shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-[20px_0_40px_rgba(0,0,0,0.5)]">
         <div className="px-6 py-5 flex items-center justify-between border-b border-white/10">
           <div className="text-sm text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
             <Activity size={16} className="text-blue-400" /> Tracked Members

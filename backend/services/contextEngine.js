@@ -14,6 +14,7 @@ function getContext({
   timeRisk,
   predictiveBoost,
   trip,
+  taggedLocation,
 }) {
   // AI anomaly
   if (mlRisk > 80) {
@@ -48,6 +49,11 @@ function getContext({
   // driver suspicious
   if (driverRisk > 75) {
     return "Driver behaviour suspicious";
+  }
+
+  // Safe proximity to a known tagged location
+  if (taggedLocation && mlRisk < 50 && motionRisk < 10) {
+    return taggedLocation;
   }
 
   // long stop
