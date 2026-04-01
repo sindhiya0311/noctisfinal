@@ -1,0 +1,435 @@
+import { motion, AnimatePresence } from "framer-motion";
+import { AlertTriangle, Shield, Siren, Radar, Users, MapPin, Radio, Activity } from "lucide-react";
+import { useContext, useState, useEffect, useRef, useMemo } from "react";
+import { RiskContext } from "../context/RiskContext";
+import { startNoctisDemo } from "../demo/demoScenario";
+import MapView from "../components/MapView";
+import WorkerSavedLocations from "./WorkerSavedLocations";
+import WorkerHeatmap from "./WorkerHeatmap";
+import WorkerCodeword from "./WorkerCodeword";
+import CodewordModal from "../components/CodewordModal";
+import FamilyMultiTracker from "../components/FamilyMultiTracker";
+
+import axios from "axios";
+import socket from "../socket";
+
+export default function FamilyDashboard() {
+  const {
+    risk,
+    context,
+    riskLevel,
+    triggerManualSOS,
+    triggerCodewordSOS,
+    updateRisk,
+    updateContext,
+    startDemoMode,
+  } = useContext(RiskContext);
+  
+  const user = useMemo(() => {
+    const userData = sessionStorage.getItem("user");
+    return userData ? JSON.parse(userData) : null;
+  }, []);
+
+  const logout = () => {
+    sessionStorage.removeItem("user");
+    window.location.href = "/";
+  };
+
+  const [page, setPage] = useState("dashboard");
+  const [openCodeword, setOpenCodeword] = useState(false);
+  const [requests, setRequests] = useState([]);
+  const [familyEmail, setFamilyEmail] = useState("");
+  const [familyMsg, setFamilyMsg] = useState("");
+
+  const recognitionRef = useRef(null);
+
+  /* CODEWORD DETECTION */
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition || !user) return;
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    let isStarted = false;
+
+    recognition.onstart = () => {
+      isStarted = true;
+    };
+
+    recognition.onend = () => {
+      isStarted = false;
+      setTimeout(() => {
+        if (!isStarted) {
+          try { recognition.start(); } catch (err) {}
+        }
+      }, 300);
+    };
+
+    recognition.onerror = () => { isStarted = false; };
+
+    recognition.onresult = (event) => {
+      const storageKey = `codeword_${user?._id || user?.id}`;
+      const savedWord = localStorage.getItem(storageKey);
+      if (!savedWord) return;
+      const codeword = savedWord.toLowerCase().trim();
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript.toLowerCase();
+        if (transcript.includes(codeword)) {
+          triggerCodewordSOS();
+          socket.emit("worker:sos", { userId: user?._id || user?.id });
+          recognition.stop();
+          break;
+        }
+      }
+    };
+
+    try { recognition.start(); } catch (err) {}
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      }
+    };
+  }, [triggerCodewordSOS, user]);
+
+  useEffect(() => {
+    if (user && (user.id || user._id)) loadRequests();
+    const storageKey = `codeword_${user?._id || user?.id}`;
+    const word = localStorage.getItem(storageKey);
+    if (!word) setOpenCodeword(true);
+  }, [user]);
+
+  const loadRequests = async () => {
+    if (!user) return;
+    const userId = user._id || user.id;
+    const res = await axios.get(`http://localhost:5000/api/requests/${userId}`);
+    // Family users manage their *own* incoming requests if someone wants to track THEM
+    setRequests(res.data.filter((r) => r.type === "family"));
+  };
+
+  const acceptRequest = async (id) => {
+    await axios.post("http://localhost:5000/api/requests/accept", { requestId: id });
+    loadRequests();
+  };
+
+  const rejectRequest = async (id) => {
+    await axios.post("http://localhost:5000/api/requests/reject", { requestId: id });
+    loadRequests();
+  };
+
+  const sendFamilyRequest = async () => {
+    if (!user) return;
+    const userId = user._id || user.id;
+    try {
+      await axios.post("http://localhost:5000/api/requests/send", {
+        fromUser: userId,
+        email: familyEmail,
+        type: "family",
+      });
+      setFamilyMsg(`Request sent to ${familyEmail}`);
+      setFamilyEmail("");
+    } catch {
+      setFamilyMsg("User not found");
+    }
+  };
+
+  if (!user) return <div className="min-h-screen bg-[#020617] text-white p-10">Redirecting...</div>;
+
+  const riskColor = riskLevel === "emergency" ? "text-red-400" : riskLevel === "warning" ? "text-yellow-400" : "text-green-400";
+
+  const startDemo = () => {
+    startDemoMode();
+    startNoctisDemo({
+      setRisk: updateRisk,
+      pushContext: updateContext,
+      setDriverState: () => {},
+      setDriverRisk: () => {},
+      triggerMildAlert: () => {},
+      triggerStrongAlert: () => {},
+      triggerEmergency: () => {
+        triggerManualSOS();
+        socket.emit("worker:sos", { userId: user?._id || user?.id });
+      },
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#020617] text-white flex">
+      {/* SIDEBAR */}
+      <div className="w-72 bg-gradient-to-b from-[#020617]/90 to-[#030a1a]/90 backdrop-blur-3xl border-r border-white/10 p-6 shadow-2xl z-20 flex flex-col justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-widest mb-10 bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent flex items-center gap-3">
+            <Shield className="text-blue-400" size={28} />
+            NOCTIS
+          </h1>
+
+          <div className="space-y-3 text-sm font-medium cursor-pointer">
+            {[
+              ["dashboard", "My Dashboard", <Radar size={18}/>],
+              ["tracked-members", "Tracked Members", <Users size={18}/>],
+              ["locations", "Saved Locations", <MapPin size={18}/>],
+              ["heatmap", "Risk Heatmap", <Activity size={18}/>],
+              ["codeword", "Codeword Engine", <Radio size={18}/>],
+              ["family", "Family Connections", <Users size={18}/>],
+            ].map(([key, label, icon]) => (
+              <div
+                key={key}
+                onClick={() => setPage(key)}
+                className={`px-4 py-3 rounded-xl transition-all duration-300 flex items-center gap-3
+              ${
+                page === key
+                  ? "bg-blue-500/20 text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.15)] border border-blue-500/30"
+                  : "hover:bg-white/5 text-gray-400 hover:text-gray-200 border border-transparent"
+              }`}
+              >
+                {icon} {label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={triggerManualSOS}
+          className="mt-8 px-4 py-3 rounded-xl text-red-400 font-semibold border border-red-500/20 hover:bg-red-500/20 transition-all flex justify-center items-center gap-2 w-full shadow-lg"
+        >
+          <Siren size={18} /> Emergency SOS
+        </button>
+      </div>
+
+      {/* CONTENT */}
+      <div className="flex-1 p-8 relative overflow-hidden flex flex-col">
+        {/* Dynamic Background Glow */}
+        <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[100px] opacity-20 pointer-events-none transition-colors duration-1000 ${risk >= 80 ? 'bg-red-500' : risk >= 40 ? 'bg-yellow-500' : 'bg-blue-500'}`} />
+
+        <AnimatePresence mode="wait">
+        {page === "dashboard" && (
+          <motion.div
+            key="dashboard"
+            initial={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+            exit={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 flex flex-col"
+          >
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight">Personal Workspace</h2>
+                <div className="text-gray-400 mt-1">Live AI safety tracking and telemetry for your own safety</div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={logout}
+                  className="bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-2 rounded-xl hover:bg-red-500/20 font-medium transition"
+                >
+                  Logout
+                </button>
+
+                <motion.div
+                  animate={{ opacity: [0.6, 1, 0.6] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className={`bg-opacity-20 px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border shadow-lg backdrop-blur-md ${risk >= 80 ? 'bg-red-500/20 text-red-400 border-red-500/30 shadow-red-500/20' : 'bg-green-500/20 text-green-400 border-green-500/30 shadow-green-500/20'}`}
+                >
+                  <Radar size={16} className={risk >= 80 ? 'animate-spin' : ''} />
+                  {risk >= 80 ? "EMERGENCY OVERRIDE" : "Live Shield Active"}
+                </motion.div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-8 flex-1">
+              <div className="col-span-8 bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-3xl p-3 h-[600px] shadow-2xl backdrop-blur-2xl relative overflow-hidden group">
+                <MapView />
+                {/* Visual Glass Overlay */}
+                <div className="absolute inset-0 pointer-events-none rounded-3xl border border-white/10 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)]" />
+              </div>
+
+              <div className="col-span-4 space-y-6 flex flex-col justify-start">
+                <motion.div 
+                  animate={risk >= 80 ? { boxShadow: ["0px 0px 0px rgba(239,68,68,0)", "0px 0px 40px rgba(239,68,68,0.5)", "0px 0px 0px rgba(239,68,68,0)"] } : {}}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl border border-white/10 p-6 rounded-3xl shadow-xl flex items-center justify-between"
+                >
+                  <div>
+                    <div className="text-gray-400 text-sm font-medium mb-1 uppercase tracking-wider flex items-center gap-2"><AlertTriangle size={16} /> Compute Risk</div>
+                    <motion.div
+                      key={risk}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ duration: 0.3 }}
+                      className={`text-5xl font-bold tracking-tight ${riskColor}`}
+                    >
+                      {Math.round(risk)}%
+                    </motion.div>
+                  </div>
+                  
+                  <div className={`h-16 w-16 rounded-full flex items-center justify-center bg-opacity-10 ${riskColor.replace('text', 'bg')} border border-current shadow-inner`}>
+                    <Shield size={32} />
+                  </div>
+                </motion.div>
+
+                <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl border border-white/10 p-6 rounded-3xl shadow-xl">
+                  <div className="text-gray-400 text-sm font-medium mb-2 uppercase tracking-wider flex items-center gap-2"><Radar size={16} /> Live Context</div>
+                  <div className="text-xl font-medium leading-relaxed">{context}</div>
+                </div>
+
+                <div className="pt-4 grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => {
+                      triggerManualSOS();
+                      socket.emit("worker:sos", { userId: user?._id || user?.id });
+                    }}
+                    className="col-span-2 bg-gradient-to-r from-red-500/20 to-red-600/30 border border-red-500/50 rounded-2xl p-5 flex gap-3 text-lg font-semibold w-full justify-center hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)]"
+                  >
+                    <Siren size={24} className={risk >= 80 ? 'animate-pulse' : ''} />
+                    TRIGGER SOS
+                  </button>
+                  <button
+                    onClick={startDemo}
+                    className="col-span-2 bg-gradient-to-r from-blue-500/20 to-blue-600/20 border border-blue-500/40 rounded-2xl p-4 flex gap-2 font-medium w-full justify-center hover:bg-blue-500/30 transition-all duration-200 shadow-lg"
+                  >
+                    Force Demo Scenario
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {page === "tracked-members" && (
+          <motion.div
+            key="tracked-members"
+            initial={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+            exit={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 w-full h-full relative"
+          >
+             <FamilyMultiTracker />
+          </motion.div>
+        )}
+
+        {page === "family" && (
+          <motion.div
+            key="family"
+            initial={{ opacity: 0, filter: "blur(10px)", scale: 0.95 }}
+            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+            exit={{ opacity: 0, filter: "blur(10px)", scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="bg-gradient-to-br from-white/5 to-white/0 border border-white/10 p-8 rounded-3xl w-[700px] shadow-2xl backdrop-blur-xl mx-auto mt-10 relative overflow-hidden"
+          >
+            <h2 className="text-2xl font-bold tracking-wide mb-6">Manage Connections</h2>
+
+            <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 p-5 rounded-2xl border border-blue-500/20 mb-8">
+              <h3 className="font-semibold text-blue-300 mb-2">Request to Track Someone</h3>
+              <div className="flex gap-3">
+                <input
+                  value={familyEmail}
+                  onChange={(e) => setFamilyEmail(e.target.value)}
+                  className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition-colors shadow-inner"
+                  placeholder="Enter their email address..."
+                />
+                <button
+                  onClick={sendFamilyRequest}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg whitespace-nowrap"
+                >
+                  Send Request
+                </button>
+              </div>
+              {familyMsg && <div className="mt-4 text-sm text-blue-300 bg-blue-500/10 p-2 rounded-lg border border-blue-500/20">{familyMsg}</div>}
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-gray-300 mb-4 border-b border-white/10 pb-2">Pending Inbound Requests (To Track You)</h3>
+              {requests.length === 0 ? (
+                <div className="text-center p-6 bg-black/20 rounded-2xl border border-dashed border-white/10 flex items-center justify-center gap-2">
+                  <Shield size={16} className="text-gray-500" />
+                  <p className="text-gray-400">No pending inbound requests.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                {requests.map((r) => (
+                  <div
+                    key={r._id}
+                    className="p-4 bg-black/40 border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/5 transition-all"
+                  >
+                    <span className="font-medium text-gray-200">A user wants to monitor your safety</span>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => acceptRequest(r._id)}
+                        className="bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-4 py-2 rounded-xl font-semibold border border-green-500/30 transition-all"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => rejectRequest(r._id)}
+                        className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl font-semibold border border-red-500/30 transition-all"
+                      >
+                        Deny
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                </div>
+              )}
+            </div>
+
+          </motion.div>
+        )}
+
+        {page === "locations" && (
+          <motion.div
+            key="locations"
+            initial={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+            exit={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            transition={{ duration: 0.3 }}
+            className="h-full w-full max-w-4xl mx-auto"
+          >
+            <WorkerSavedLocations />
+          </motion.div>
+        )}
+
+        {page === "heatmap" && (
+          <motion.div
+            key="heatmap"
+            initial={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+            exit={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            transition={{ duration: 0.3 }}
+            className="w-full h-full max-w-6xl mx-auto"
+          >
+             <div className="h-[600px] mt-6">
+                <WorkerHeatmap />
+             </div>
+          </motion.div>
+        )}
+
+        {page === "codeword" && (
+          <motion.div
+            key="codeword"
+            initial={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+            exit={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            transition={{ duration: 0.3 }}
+            className="h-full max-w-4xl mx-auto flex flex-col justify-center"
+          >
+            <WorkerCodeword />
+          </motion.div>
+        )}
+        </AnimatePresence>
+
+      </div>
+
+      <CodewordModal
+        open={openCodeword}
+        onClose={() => setOpenCodeword(false)}
+      />
+    </div>
+  );
+}
