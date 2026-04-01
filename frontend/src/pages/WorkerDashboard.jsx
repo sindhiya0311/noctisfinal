@@ -8,6 +8,7 @@ import MapView from "../components/MapView";
 import WorkerSavedLocations from "./WorkerSavedLocations";
 import WorkerHeatmap from "./WorkerHeatmap";
 import WorkerCodeword from "./WorkerCodeword";
+import WorkerEmergencyContacts from "./WorkerEmergencyContacts";
 import CodewordModal from "../components/CodewordModal";
 
 import axios from "axios";
@@ -35,6 +36,7 @@ export default function WorkerDashboard() {
 
   const [page, setPage] = useState("dashboard");
   const [openCodeword, setOpenCodeword] = useState(false);
+  const [showCodewordPopup, setShowCodewordPopup] = useState(false);
   const [requests, setRequests] = useState([]);
 
   const [transportType, setTransportType] = useState("personal");
@@ -105,6 +107,8 @@ export default function WorkerDashboard() {
           console.log("!!! CODEWORD MATCHED !!!", codeword);
 
           triggerCodewordSOS();
+          setShowCodewordPopup(true);
+          setTimeout(() => setShowCodewordPopup(false), 5000);
 
           // 🔥 ADD THIS LINE
           socket.emit("worker:sos", {
@@ -226,7 +230,7 @@ export default function WorkerDashboard() {
             {[
               ["dashboard", "Dashboard"],
               ["locations", "Saved Locations"],
-              ["heatmap", "Risk Heatmap"],
+              ["contacts", "Emergency Contacts"],
               ["codeword", "Codeword Engine"],
               ["transport", "Transport Tracking"],
               ["family", "Family Sharing"],
@@ -603,6 +607,19 @@ export default function WorkerDashboard() {
             <WorkerCodeword />
           </motion.div>
         )}
+
+        {page === "contacts" && (
+          <motion.div
+            key="contacts"
+            initial={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+            exit={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
+            transition={{ duration: 0.3 }}
+            className="max-w-5xl mx-auto mt-6 h-[700px]"
+          >
+            <WorkerEmergencyContacts />
+          </motion.div>
+        )}
         </AnimatePresence>
 
       </div>
@@ -611,6 +628,23 @@ export default function WorkerDashboard() {
         open={openCodeword}
         onClose={() => setOpenCodeword(false)}
       />
+
+      <AnimatePresence>
+        {showCodewordPopup && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 50 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-8 py-4 rounded-2xl shadow-[0_0_40px_rgba(220,38,38,0.8)] border-2 border-red-400 z-50 flex items-center gap-4 will-change-transform"
+          >
+            <Siren size={32} className="animate-pulse" />
+            <div>
+              <div className="text-xl font-black tracking-widest uppercase">Codeword Detected!</div>
+              <div className="text-red-200 text-sm font-semibold">Broadcasting emergency SOS protocol to family & dispatch...</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

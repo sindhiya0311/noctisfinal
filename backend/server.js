@@ -24,6 +24,13 @@ const riskMemory = require("./services/riskMemory");
 // Routes
 const userRoutes = require("./routes/userRoutes");
 const locationRoutes = require("./routes/locationRoutes");
+const User = require("./models/User");
+
+let twilioClient;
+if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+  const twilio = require("twilio");
+  twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -65,13 +72,16 @@ io.on("connection", (socket) => {
 
   socket.on("worker:update", (data) => {
     // ---------------- FAST UPDATE (NO LAG) ----------------
+    // Fast position sync (preserve AI state)
     workers[data.userId] = {
       ...workers[data.userId],
       ...data,
+      // Protect the ML-computed risk and context from being overridden by the raw client ping
+      risk: data.risk === 100 ? 100 : (workers[data.userId]?.risk !== undefined ? workers[data.userId].risk : data.risk),
+      context: data.risk === 100 ? data.context : (workers[data.userId]?.context !== undefined ? workers[data.userId].context : data.context),
       socketId: socket.id,
     };
 
-    io.emit("worker:update", workers[data.userId]);
     io.emit("workers:update", workers);
 
     // ---------------- AI COMPUTE (ASYNC) ----------------
@@ -134,6 +144,7 @@ io.on("connection", (socket) => {
         deviation: data.deviation,
         isNight: data.isNight,
         unsafeZone: data.unsafeZone,
+        taggedLocation: data.taggedLocation,
       });
 
       const cityRisk = cityIntelligence(data.lat, data.lng, finalRisk);
@@ -158,7 +169,7 @@ io.on("connection", (socket) => {
         data.stopDuration,
       );
 
-      const context = getContext({
+      let context = getContext({
         speed: data.speed,
         isNight: data.isNight,
         isStopped: data.isStopped,
@@ -177,11 +188,15 @@ io.on("connection", (socket) => {
         taggedLocation: data.taggedLocation,
       });
 
+      if (data.risk === 100) {
+        context = data.context || "Emergency triggered";
+      }
+
       workers[data.userId] = {
         ...workers[data.userId],
         context,
-        risk: rememberedRisk,
-        riskLevel,
+        risk: data.risk === 100 ? 100 : rememberedRisk,
+        riskLevel: data.risk === 100 ? "emergency" : riskLevel,
         mlRisk,
         trip,
         driverRisk,
@@ -190,20 +205,59 @@ io.on("connection", (socket) => {
       io.emit("worker:update", workers[data.userId]);
       io.emit("workers:update", workers);
 
-      if (rememberedRisk >= 80) {
+      if (workers[data.userId].risk >= 80) {
         io.emit("worker:alert", workers[data.userId]);
       }
     });
   });
 
-  socket.on("worker:sos", (data) => {
-    if (workers[data.userId]) {
-      workers[data.userId].risk = 100;
-      workers[data.userId].context = "Emergency triggered";
+  const sosCooldowns = {}; // Prevent API spam
 
-      io.emit("worker:update", workers[data.userId]); // Forces local MapView UI to sync risk score!
-      io.emit("worker:alert", workers[data.userId]);
-      io.emit("workers:update", workers);
+  socket.on("worker:sos", async (data) => {
+    if (!workers[data.userId]) {
+      workers[data.userId] = { userId: data.userId, name: "Worker", lat: 0, lng: 0 };
+    }
+    workers[data.userId].risk = 100;
+    workers[data.userId].context = "Emergency triggered";
+
+    io.emit("worker:update", workers[data.userId]); 
+    io.emit("worker:alert", workers[data.userId]);
+    io.emit("workers:update", workers);
+
+    // WHATSAPP DISPATCH LOGIC
+    try {
+      const now = Date.now();
+      // 5-minute cooldown per user
+      if (!sosCooldowns[data.userId] || now - sosCooldowns[data.userId] > 5 * 60 * 1000) {
+        sosCooldowns[data.userId] = now;
+        
+        const user = await User.findById(data.userId);
+        if (user && user.emergencyContacts && user.emergencyContacts.length > 0) {
+          const lat = workers[data.userId].lat;
+          const lng = workers[data.userId].lng;
+          const locationLink = `https://maps.google.com/?q=${lat},${lng}`;
+          const messageBody = `🚨 *EMERGENCY ALERT*\n${user.name || "A NOCTIS user"} is in an emergency and needs assistance. \n\nPlease send me support here:\n${locationLink}`;
+
+          if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+            for (const contact of user.emergencyContacts) {
+              // Ensure clean +91 format
+              const cleanPhone = contact.phone.replace(/\D/g, '').slice(-10);
+              await twilioClient.messages.create({
+                body: messageBody,
+                from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+                to: `whatsapp:+91${cleanPhone}`
+              });
+              console.log(`WhatsApp SOS sent to ${contact.name} (+91${cleanPhone})`);
+            }
+          } else {
+            console.log("⚠️ Twilio not configured. WhatsApp SOS skipped.");
+            console.log("Would have sent:", messageBody);
+            console.log("To:", user.emergencyContacts);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to execute WhatsApp Emergency Protocol:", err);
     }
   });
 

@@ -1,4 +1,4 @@
-import { createContext, useState } from "react";
+import { createContext, useState, useCallback } from "react";
 
 export const RiskContext = createContext();
 
@@ -8,54 +8,54 @@ export function RiskProvider({ children }) {
   const [emergency, setEmergency] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
 
-  const triggerManualSOS = () => {
+  const triggerManualSOS = useCallback(() => {
     setEmergency(true);
     setRisk(100);
     setContext("Manual SOS Triggered");
-  };
+  }, []);
 
-  const triggerCodewordSOS = () => {
+  const triggerCodewordSOS = useCallback(() => {
     setEmergency(true);
     setRisk(100);
     setContext("Codeword Detected");
-  };
+  }, []);
 
   // AI updates (blocked during demo)
-  const updateRisk = (value) => {
+  const updateRisk = useCallback((value) => {
     if (!emergency && !demoMode) {
       setRisk(value);
     }
-  };
+  }, [emergency, demoMode]);
 
-  const updateContext = (text) => {
+  const updateContext = useCallback((text) => {
     if (!emergency && !demoMode) {
       setContext(text);
     }
-  };
+  }, [emergency, demoMode]);
 
   // DEMO overrides (always allowed)
-  const demoSetRisk = (value) => {
+  const demoSetRisk = useCallback((value) => {
     setRisk(value);
-  };
+  }, []);
 
-  const demoSetContext = (text) => {
+  const demoSetContext = useCallback((text) => {
     setContext(text);
-  };
+  }, []);
 
-  const startDemoMode = () => {
+  const startDemoMode = useCallback(() => {
     setDemoMode(true);
-  };
+  }, []);
 
-  const stopDemoMode = () => {
+  const stopDemoMode = useCallback(() => {
     setDemoMode(false);
-  };
+  }, []);
 
-  const resetEmergency = () => {
+  const resetEmergency = useCallback(() => {
     setEmergency(false);
     setRisk(5);
     setContext("Safe");
     setDemoMode(false);
-  };
+  }, []);
 
   const riskLevel = risk >= 80 ? "emergency" : risk >= 40 ? "warning" : "safe";
 

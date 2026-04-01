@@ -56,4 +56,48 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// GET CONTACTS
+router.get("/contacts/:id", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user.emergencyContacts || []);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch contacts" });
+  }
+});
+
+// ADD CONTACT
+router.post("/contacts/:id", async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.emergencyContacts.push({ name, phone });
+    await user.save();
+
+    res.json(user.emergencyContacts);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add contact" });
+  }
+});
+
+// DELETE CONTACT
+router.delete("/contacts/:id/:contactId", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.emergencyContacts = user.emergencyContacts.filter(
+      (c) => c._id.toString() !== req.params.contactId
+    );
+    await user.save();
+
+    res.json(user.emergencyContacts);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete contact" });
+  }
+});
+
 module.exports = router;

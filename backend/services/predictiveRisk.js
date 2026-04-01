@@ -4,6 +4,7 @@ function predictiveRisk({
   deviation,
   isNight,
   unsafeZone,
+  taggedLocation,
 }) {
   let risk = baseRisk || 0;
 
@@ -22,8 +23,12 @@ function predictiveRisk({
   // unsafe zone amplifier
   if (unsafeZone) risk += 15;
 
+  // safe zone attenuator
+  if (taggedLocation) risk -= 25;
+
   // clamp
   if (risk > 100) risk = 100;
+  if (risk < 0) risk = 0;
 
   return risk;
 }

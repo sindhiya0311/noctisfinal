@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, Shield, Siren, Radar, Users, MapPin, Radio, Activity } from "lucide-react";
+import { AlertTriangle, Shield, Siren, Radar, Users, MapPin, Radio, Activity, Phone } from "lucide-react";
 import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { RiskContext } from "../context/RiskContext";
 import { startNoctisDemo } from "../demo/demoScenario";
@@ -7,6 +7,7 @@ import MapView from "../components/MapView";
 import WorkerSavedLocations from "./WorkerSavedLocations";
 import WorkerHeatmap from "./WorkerHeatmap";
 import WorkerCodeword from "./WorkerCodeword";
+import WorkerEmergencyContacts from "./WorkerEmergencyContacts";
 import CodewordModal from "../components/CodewordModal";
 import FamilyMultiTracker from "../components/FamilyMultiTracker";
 
@@ -37,6 +38,7 @@ export default function FamilyDashboard() {
 
   const [page, setPage] = useState("dashboard");
   const [openCodeword, setOpenCodeword] = useState(false);
+  const [showCodewordPopup, setShowCodewordPopup] = useState(false);
   const [requests, setRequests] = useState([]);
   const [familyEmail, setFamilyEmail] = useState("");
   const [familyMsg, setFamilyMsg] = useState("");
@@ -82,6 +84,8 @@ export default function FamilyDashboard() {
         const transcript = event.results[i][0].transcript.toLowerCase();
         if (transcript.includes(codeword)) {
           triggerCodewordSOS();
+          setShowCodewordPopup(true);
+          setTimeout(() => setShowCodewordPopup(false), 5000);
           socket.emit("worker:sos", { userId: user?._id || user?.id });
           recognition.stop();
           break;
@@ -175,7 +179,7 @@ export default function FamilyDashboard() {
               ["dashboard", "My Dashboard", <Radar size={18}/>],
               ["tracked-members", "Tracked Members", <Users size={18}/>],
               ["locations", "Saved Locations", <MapPin size={18}/>],
-              ["heatmap", "Risk Heatmap", <Activity size={18}/>],
+              ["contacts", "Emergency Contacts", <Phone size={18}/>],
               ["codeword", "Codeword Engine", <Radio size={18}/>],
               ["family", "Family Connections", <Users size={18}/>],
             ].map(([key, label, icon]) => (
@@ -248,7 +252,7 @@ export default function FamilyDashboard() {
           ["dashboard", <Radar size={22}/>],
           ["tracked-members", <Users size={22}/>],
           ["locations", <MapPin size={22}/>],
-          ["heatmap", <Activity size={22}/>],
+          ["contacts", <Phone size={22}/>],
           ["codeword", <Radio size={22}/>],
           ["family", <Shield size={22}/>],
         ].map(([key, icon]) => (
@@ -459,17 +463,17 @@ export default function FamilyDashboard() {
           </motion.div>
         )}
 
-        {page === "heatmap" && (
+        {page === "contacts" && (
           <motion.div
-            key="heatmap"
+            key="contacts"
             initial={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
             animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
             exit={{ opacity: 0, filter: "blur(10px)", scale: 0.98 }}
             transition={{ duration: 0.3 }}
-            className="w-full h-full max-w-6xl mx-auto"
+            className="w-full h-full max-w-5xl mx-auto"
           >
              <div className="h-[600px] mt-6">
-                <WorkerHeatmap />
+                <WorkerEmergencyContacts />
              </div>
           </motion.div>
         )}
@@ -494,6 +498,23 @@ export default function FamilyDashboard() {
         open={openCodeword}
         onClose={() => setOpenCodeword(false)}
       />
+
+      <AnimatePresence>
+        {showCodewordPopup && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 50 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-red-600 text-white px-8 py-4 rounded-2xl shadow-[0_0_40px_rgba(220,38,38,0.8)] border-2 border-red-400 z-50 flex items-center gap-4 will-change-transform"
+          >
+            <Siren size={32} className="animate-pulse" />
+            <div>
+              <div className="text-xl font-black tracking-widest uppercase">Codeword Detected!</div>
+              <div className="text-red-200 text-sm font-semibold">Broadcasting emergency SOS protocol to dispatch...</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

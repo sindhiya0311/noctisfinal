@@ -11,6 +11,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ["worker", "family", "enterprise"],
   },
+  emergencyContacts: [
+    {
+      name: String,
+      phone: String, // Indian standard +91 length
+    },
+  ],
 });
 
 module.exports = mongoose.model("User", userSchema);

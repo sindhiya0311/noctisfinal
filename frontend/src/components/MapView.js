@@ -87,6 +87,26 @@ export default function MapView({
     // If we have a saved manual override, don't even try to fetch IP or GPS
     if (manualLockRef.current) return;
 
+    const emitBaselinePosition = (lat, lng) => {
+      socket.emit("worker:update", {
+        userId: userId,
+        name: workerName,
+        lat,
+        lng,
+        speed: 0,
+        isStopped: 0,
+        stopDuration: 0,
+        isNight: isNightTime() ? 1 : 0,
+        unsafeZone: 0,
+        deviation: 0,
+        taggedLocation: null,
+        tripMode: tripModeRef.current,
+        risk: emergencyRef.current ? 100 : 5,
+        context: emergencyRef.current ? contextRef.current : "Safe",
+        transportType: transportTypeRef.current,
+      });
+    };
+
     const fetchIPLocation = async () => {
       try {
         const res = await fetch("https://ipapi.co/json/");
@@ -94,17 +114,21 @@ export default function MapView({
         if (data.latitude && data.longitude) {
           console.log("Using IP Geolocation fallback:", data.city);
           setPosition([data.latitude, data.longitude]);
+          emitBaselinePosition(data.latitude, data.longitude);
         } else {
           setPosition([28.6139, 77.2090]); // Just a central default
+          emitBaselinePosition(28.6139, 77.2090);
         }
       } catch (err) {
         setPosition([28.6139, 77.2090]); 
+        emitBaselinePosition(28.6139, 77.2090);
       }
     };
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setPosition([pos.coords.latitude, pos.coords.longitude]);
+        emitBaselinePosition(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
         console.warn("Hardware GPS Failed/Blocked. Trying IP Geolocation...", err);
@@ -260,20 +284,16 @@ export default function MapView({
           }
         }
 
-        if (!emergencyRef.current) {
-          updateRiskRef.current(newRisk);
-          updateContextRef.current(newContext);
-        }
-
         socket.emit("worker:update", {
           userId: userId,
           name: workerName,
           lat,
           lng,
           speed,
-          stop,
-          night,
-          unsafe,
+          isStopped: stop,
+          stopDuration: stop ? Math.floor((now - lastMoveTimeRef.current) / 1000) : 0,
+          isNight: night,
+          unsafeZone: unsafe,
           deviation: deviationFlag,
           taggedLocation: taggedLocationContext, // New spatial context
           tripMode: tripModeRef.current,
@@ -352,9 +372,10 @@ export default function MapView({
         lat: position[0],
         lng: position[1],
         speed: 0,
-        stop: 1,
-        night: isNightTime() ? 1 : 0,
-        unsafe: checkUnsafeZone(position[0], position[1]) ? 1 : 0,
+        isStopped: 1,
+        stopDuration: 60,
+        isNight: isNightTime() ? 1 : 0,
+        unsafeZone: checkUnsafeZone(position[0], position[1]) ? 1 : 0,
         deviation: 0,
         risk: emergencyRef.current ? 100 : risk,
         context: emergencyRef.current ? contextRef.current : "Manual Location Override",
