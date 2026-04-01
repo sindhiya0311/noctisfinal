@@ -147,19 +147,19 @@ export default function WorkerDashboard() {
   const loadRequests = async () => {
     if (!user) return;
     const userId = user._id || user.id;
-    const res = await axios.get(`http://localhost:5000/api/requests/${userId}`);
+    const res = await axios.get(`https://noctisfinal.onrender.com/api/requests/${userId}`);
     setRequests(res.data.filter((r) => r.type === "enterprise"));
   };
 
   const acceptRequest = async (id) => {
-    await axios.post("http://localhost:5000/api/requests/accept", {
+    await axios.post("https://noctisfinal.onrender.com/api/requests/accept", {
       requestId: id,
     });
     loadRequests();
   };
 
   const rejectRequest = async (id) => {
-    await axios.post("http://localhost:5000/api/requests/reject", {
+    await axios.post("https://noctisfinal.onrender.com/api/requests/reject", {
       requestId: id,
     });
     loadRequests();
@@ -169,7 +169,7 @@ export default function WorkerDashboard() {
     if (!user) return;
     const userId = user._id || user.id;
     try {
-      await axios.post("http://localhost:5000/api/requests/send", {
+      await axios.post("https://noctisfinal.onrender.com/api/requests/send", {
         fromUser: userId,
         email: familyEmail,
         type: "family",

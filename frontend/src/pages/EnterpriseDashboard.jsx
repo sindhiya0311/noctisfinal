@@ -39,7 +39,7 @@ export default function EnterpriseDashboard() {
   const sendRequest = async () => {
     if (!user) return;
     try {
-      await axios.post("http://localhost:5000/api/requests/send", {
+      await axios.post("https://noctisfinal.onrender.com/api/requests/send", {
         fromUser: user.id,
         email,
         type: "enterprise",

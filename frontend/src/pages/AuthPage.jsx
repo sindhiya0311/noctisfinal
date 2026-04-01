@@ -22,12 +22,12 @@ export default function AuthPage() {
   const handleSubmit = async () => {
     try {
       if (mode === "signup") {
-        await axios.post("http://localhost:5000/api/users/signup", form);
+        await axios.post("https://noctisfinal.onrender.com/api/users/signup", form);
         alert("Account created. Please login.");
         setMode("login");
       } else {
         const res = await axios.post(
-          "http://localhost:5000/api/users/login",
+          "https://noctisfinal.onrender.com/api/users/login",
           form,
         );
 

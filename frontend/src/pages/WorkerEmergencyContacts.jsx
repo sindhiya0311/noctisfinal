@@ -19,7 +19,7 @@ export default function WorkerEmergencyContacts() {
     const userId = user?._id || user?.id;
     if (!userId) return;
     try {
-      const res = await axios.get(`http://localhost:5000/api/users/contacts/${userId}`);
+      const res = await axios.get(`https://noctisfinal.onrender.com/api/users/contacts/${userId}`);
       setContacts(res.data);
     } catch (err) {
       console.error("Failed to load contacts:", err);
@@ -43,7 +43,7 @@ export default function WorkerEmergencyContacts() {
     const userId = user?._id || user?.id;
     try {
       setLoading(true);
-      const res = await axios.post(`http://localhost:5000/api/users/contacts/${userId}`, {
+      const res = await axios.post(`https://noctisfinal.onrender.com/api/users/contacts/${userId}`, {
         name: name.trim(),
         phone: rawNumber.slice(-10), // Take last 10 digits
       });
@@ -63,7 +63,7 @@ export default function WorkerEmergencyContacts() {
     const userId = user?._id || user?.id;
     try {
       setLoading(true);
-      const res = await axios.delete(`http://localhost:5000/api/users/contacts/${userId}/${contactId}`);
+      const res = await axios.delete(`https://noctisfinal.onrender.com/api/users/contacts/${userId}/${contactId}`);
       setContacts(res.data);
     } catch (err) {
       console.error("Failed to delete contact:", err);

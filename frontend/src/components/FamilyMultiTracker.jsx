@@ -28,7 +28,7 @@ export default function FamilyMultiTracker() {
         if (!userData) return;
         const user = JSON.parse(userData);
         const userId = user._id || user.id;
-        const res = await axios.get(`http://localhost:5000/api/requests/linked/${userId}`);
+        const res = await axios.get(`https://noctisfinal.onrender.com/api/requests/linked/${userId}`);
         
         const ids = [];
         const initialMembers = {};

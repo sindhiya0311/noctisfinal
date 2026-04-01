@@ -113,18 +113,18 @@ export default function FamilyDashboard() {
   const loadRequests = async () => {
     if (!user) return;
     const userId = user._id || user.id;
-    const res = await axios.get(`http://localhost:5000/api/requests/${userId}`);
+    const res = await axios.get(`https://noctisfinal.onrender.com/api/requests/${userId}`);
     // Family users manage their *own* incoming requests if someone wants to track THEM
     setRequests(res.data.filter((r) => r.type === "family"));
   };
 
   const acceptRequest = async (id) => {
-    await axios.post("http://localhost:5000/api/requests/accept", { requestId: id });
+    await axios.post("https://noctisfinal.onrender.com/api/requests/accept", { requestId: id });
     loadRequests();
   };
 
   const rejectRequest = async (id) => {
-    await axios.post("http://localhost:5000/api/requests/reject", { requestId: id });
+    await axios.post("https://noctisfinal.onrender.com/api/requests/reject", { requestId: id });
     loadRequests();
   };
 
@@ -132,7 +132,7 @@ export default function FamilyDashboard() {
     if (!user) return;
     const userId = user._id || user.id;
     try {
-      await axios.post("http://localhost:5000/api/requests/send", {
+      await axios.post("https://noctisfinal.onrender.com/api/requests/send", {
         fromUser: userId,
         email: familyEmail,
         type: "family",
