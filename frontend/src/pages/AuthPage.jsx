@@ -1,16 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
-import { ChevronDown, Check } from "lucide-react";
 
 export default function AuthPage() {
   const [mode, setMode] = useState("login");
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  const roles = [
-    { value: "worker", label: "Worker" },
-    { value: "family", label: "Family" },
-    { value: "enterprise", label: "Enterprise" },
-  ];
 
   const [form, setForm] = useState({
     email: "",
