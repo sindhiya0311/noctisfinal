@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MapPin, Plus, Trash, Edit } from "lucide-react";
+import { MapPin, Plus, Trash } from "lucide-react";
 import LocationTagModal from "../components/LocationTagModal";
 
 export default function WorkerSavedLocations() {
@@ -13,6 +13,7 @@ export default function WorkerSavedLocations() {
     window.addEventListener("savedLocationsUpdated", reload);
 
     return () => window.removeEventListener("savedLocationsUpdated", reload);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getKey = () => {

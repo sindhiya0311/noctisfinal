@@ -13,6 +13,7 @@ export default function WorkerEmergencyContacts() {
 
   useEffect(() => {
     loadContacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadContacts = async () => {

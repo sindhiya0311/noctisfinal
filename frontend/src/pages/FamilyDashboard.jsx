@@ -5,9 +5,9 @@ import { RiskContext } from "../context/RiskContext";
 import { startNoctisDemo } from "../demo/demoScenario";
 import MapView from "../components/MapView";
 import WorkerSavedLocations from "./WorkerSavedLocations";
-import WorkerHeatmap from "./WorkerHeatmap";
 import WorkerCodeword from "./WorkerCodeword";
 import WorkerEmergencyContacts from "./WorkerEmergencyContacts";
+
 import CodewordModal from "../components/CodewordModal";
 import FamilyMultiTracker from "../components/FamilyMultiTracker";
 
@@ -108,6 +108,7 @@ export default function FamilyDashboard() {
     const storageKey = `codeword_${user?._id || user?.id}`;
     const word = localStorage.getItem(storageKey);
     if (!word) setOpenCodeword(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadRequests = async () => {
@@ -269,7 +270,7 @@ export default function FamilyDashboard() {
       </div>
 
       {/* CONTENT */}
-      <div className="flex-1 p-4 md:p-8 relative overflow-x-hidden flex flex-col min-h-[calc(100vh-[140px])] md:min-h-screen">
+      <div className="flex-1 p-4 md:p-8 relative overflow-x-hidden flex flex-col min-h-[calc(100vh-140px)] md:min-h-screen">
         {/* Dynamic Background Glow */}
         <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[100px] opacity-20 pointer-events-none transition-colors duration-1000 ${risk >= 80 ? 'bg-red-500' : risk >= 40 ? 'bg-yellow-500' : 'bg-blue-500'}`} />
 
